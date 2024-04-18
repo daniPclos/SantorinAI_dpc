@@ -29,10 +29,10 @@ class PlayerDPC1(Player):
             ):
                 return pawn
 
-    def get_enemy_pawns(self, board, our_pawn):
+    def get_rival_pawns(self, board, player_nb):
         pawns = []
         for pawn in board.pawns:
-            if pawn.player_number != our_pawn.player_number:
+            if pawn.player_number != player_nb:
                 pawns.append(pawn)
         return pawns
 
@@ -85,14 +85,13 @@ class PlayerDPC1(Player):
 
                 # Compute evaluation variables
                 dic_ind_eval_var["sum_height"] = self.get_pawns_added_heights(board_2)
+                dic_ind_eval_var["max_dist_rivals"] = self.get_max_distance_to_rivals(board_2)
                 dic_play_eval[id] = dic_ind_eval_var
 
             start = id + 1
 
         # Generate plays evaluation matrix
         x=1
-
-
         return None, None
 
 
@@ -109,3 +108,61 @@ class PlayerDPC1(Player):
         for pawn in board.get_player_pawns(self.player_number):
             sum_heights += board.board[pawn.pos[0]][pawn.pos[1]]
         return sum_heights
+
+    def get_max_distance_to_rivals(self, board:Board):
+        """
+        Method that computes the maximum, minimum distance to adjacent enemy pawns.
+        Args:
+            board:
+
+        Returns:
+
+        """
+        a_board = np.array(board.board)
+        a_own_pawns = self.get_own_pawns_array(board)
+        x=1
+
+    def get_own_pawns_array(self, board:Board):
+        """
+        Generate array with positions and height for own pawns
+        Args:
+            board:
+
+        Returns:
+
+        """
+        l_pawn_nb = []
+        l_pos_x = []
+        l_pos_y = []
+        l_heights = []
+
+        for pawn in board.get_player_pawns(self.player_number):
+            l_pawn_nb.append(pawn.number)
+            l_pos_x.append(pawn.pos[0])
+            l_pos_y.append(pawn.pos[1])
+            l_heights.append(board.board[pawn.pos[0]][pawn.pos[1]])
+        a_own_pawns = np.array([l_pawn_nb, l_pos_x, l_pos_y, l_heights])
+        return a_own_pawns
+
+    def get_rival_pawns_array(self, board:Board):
+        """
+        Generate array with positions and height for rival pawns
+        Args:
+            board:
+
+        Returns:
+
+        """
+        l_pawn_nb = []
+        l_pos_x = []
+        l_pos_y = []
+        l_heights = []
+
+        for pawn in self.get_rival_pawns(board, self.player_number):
+            l_pawn_nb.append(pawn.number)
+            l_pos_x.append(pawn.pos[0])
+            l_pos_y.append(pawn.pos[1])
+            l_heights.append(board.board[pawn.pos[0]][pawn.pos[1]])
+        a_rival_pawns = np.array([l_pawn_nb, l_pos_x, l_pos_y, l_heights])
+        return a_rival_pawns
+
