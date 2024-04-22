@@ -1,8 +1,8 @@
-import copy
 from santorinai.player import Player
 from santorinai.board import Board
 from santorinai.pawn import Pawn
 from random import choice
+from typing import Tuple
 
 
 class BasicPlayer(Player):
@@ -24,7 +24,7 @@ class BasicPlayer(Player):
     def name(self):
         return "Extra BaThick!"
 
-    def get_ally_pawn(self, board: Board, our_pawn: Pawn) -> Pawn | None:
+    def get_ally_pawn(self, board: Board, our_pawn: Pawn) -> Tuple[Pawn, None]:
         for pawn in board.pawns:
             if (
                 pawn.number != our_pawn.number
@@ -89,11 +89,14 @@ class BasicPlayer(Player):
                     # We can win!
                     if self.log_level:
                         print("Winning move")
-                    return available_pawns[idx].number, pos, (None, None)
+                    return available_pawns[idx].order, pos, (None, None)
 
                 # Check if possible to go up
                 pos_level = board.board[pos[0]][pos[1]]
-                if pos_level <= current_level + 1 and pos_level > best_spot_level + current_level:
+                if (
+                    pos_level <= current_level + 1
+                    and pos_level > best_spot_level + current_level
+                ):
                     # We can go up
                     best_spot = pos
                     best_spot_pawn_idx = idx
@@ -110,7 +113,11 @@ class BasicPlayer(Player):
                             # Building on the winning move
                             if self.log_level:
                                 print("Preventing opponent from winning")
-                            return available_pawns[idx].number, available_pos, winning_move
+                            return (
+                                available_pawns[idx].order,
+                                available_pos,
+                                winning_move,
+                            )
 
         # Move up if we can
         if best_spot:
@@ -124,7 +131,7 @@ class BasicPlayer(Player):
             else:
                 build_choice = None
 
-            return available_pawns[best_spot_pawn_idx].number, best_spot, build_choice
+            return available_pawns[best_spot_pawn_idx].order, best_spot, build_choice
 
         if self.log_level:
             print("Random move")
@@ -135,5 +142,5 @@ class BasicPlayer(Player):
         if t_move_build:
             t_move_build = choice(t_move_build)
         else:
-            t_move_build = (None,None)
-        return (pawn.number,) + t_move_build
+            t_move_build = (None, None)
+        return (pawn.order,) + t_move_build
