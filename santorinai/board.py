@@ -596,6 +596,7 @@ class Board:
 
         # Copy the other attributes
         board_copy.turn_number = self.turn_number
+        board_copy.player_turn = self.player_turn
         board_copy.winner_player_number = self.winner_player_number
 
         return board_copy
