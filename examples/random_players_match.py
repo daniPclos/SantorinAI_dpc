@@ -17,4 +17,5 @@ basic_player = BasicPlayer(1)
 random_payer = RandomPlayer(2)
 
 # Play 100 games
+# tester.play_1v1(basic_player, my_player, nb_games=100)
 tester.play_1v1(dpc1_player, basic_player, nb_games=100)

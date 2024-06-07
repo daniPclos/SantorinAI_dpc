@@ -75,13 +75,14 @@ class PlayerDPC1(Player):
         for pawn in board.get_player_pawns(self.player_number):
             dic_plays[pawn.number] = board.get_possible_movement_and_building_positions(pawn)
 
-            # Generate pay ids and map them to pawn and move/build coordinates
+            # Generate play ids and map them to pawn and move/build coordinates
             for id, (move, build) in enumerate(dic_plays[pawn.number], start):
                 dic_play_ids[id] = [pawn.number, move, build]
 
                 # Copy board and play move
                 board_2 = copy.deepcopy(board)
                 board_2.play_move(pawn.number, move, build)
+                board_2.player_turn = board.player_turn  # Correct turn increase in play_move
 
                 # Compute evaluation variables
                 dic_ind_eval_var["sum_height"] = self.get_pawns_added_heights(board_2)
@@ -91,8 +92,14 @@ class PlayerDPC1(Player):
             start = id + 1
 
         # Generate plays evaluation matrix
+        a_weights = np.ones(len(dic_ind_eval_var))
+        df_eval = pd.DataFrame(dic_play_eval)
+        ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
+        opt_play = np.argsort(ar_eval_comb)[::-1][0]
+        l_opt_play = dic_play_ids[opt_play]
         x=1
-        return None, None
+        pawn_order = board.pawns[l_opt_play[0] - 1].order
+        return pawn_order, l_opt_play[1], l_opt_play[2]
 
 
     def get_pawns_added_heights(self, board: Board):
@@ -120,7 +127,18 @@ class PlayerDPC1(Player):
         """
         a_board = np.array(board.board)
         a_own_pawns = self.get_own_pawns_array(board)
-        x=1
+        a_riv_pawns = self.get_rival_pawns_array(board)
+
+        # Calculate distances between own pawn and others
+        pawn_1 = max(max(abs(a_riv_pawns[1:3, 0] - a_own_pawns[1:3, 0])),  # x, y distance to rival 1
+                     max(abs(a_riv_pawns[1:3, 1] - a_own_pawns[1:3, 0])))  # x, y distance to rival 2
+
+        pawn_2 = max(max(abs(a_riv_pawns[1:3, 0] - a_own_pawns[1:3, 1])),  # x, y distance to rival 1
+                     max(abs(a_riv_pawns[1:3, 1] - a_own_pawns[1:3, 1])))  # x, y distance to rival 2
+
+        # Subtract maximum distance so higher values correspond to lower distances
+        max_dist = 4 - min(pawn_1, pawn_2)
+        return int(max_dist)
 
     def get_own_pawns_array(self, board:Board):
         """
