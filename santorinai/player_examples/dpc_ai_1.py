@@ -70,6 +70,7 @@ class PlayerDPC1(Player):
         dic_play_eval = {}  # Dictionary to store plays evaluation variables
         dic_ind_eval_var = {}  # Dictionary of individual evaluation variables
         start = 0
+        id = 0
 
         # Select available moves and builds
         for pawn in board.get_player_pawns(self.player_number):
@@ -81,7 +82,7 @@ class PlayerDPC1(Player):
 
                 # Copy board and play move
                 board_2 = copy.deepcopy(board)
-                board_2.play_move(pawn.number, move, build)
+                board_2.play_move(pawn.order, move, build)
                 board_2.player_turn = board.player_turn  # Correct turn increase in play_move
 
                 # Compute evaluation variables
