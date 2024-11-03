@@ -11,11 +11,11 @@ tester.delay_between_moves = 0.5  # Delay between each move in seconds
 tester.display_board = True  # Display a graphical view of the board in a window
 
 # Init the players
-my_player = FirstChoicePlayer(1)
+first_choice = FirstChoicePlayer(1)
 dpc1_player = PlayerDPC1(2)
 basic_player = BasicPlayer(1)
 random_payer = RandomPlayer(2)
 
 # Play 100 games
 # tester.play_1v1(basic_player, my_player, nb_games=100)
-tester.play_1v1(basic_player, dpc1_player, nb_games=100)
+tester.play_1v1(first_choice, dpc1_player, nb_games=100)
