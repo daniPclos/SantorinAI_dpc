@@ -78,14 +78,19 @@ class PlayerDPC1(Player):
             # Generate movement sets
             l_moves = list(set([l_plays[i][0] for i in range(len(l_plays))]))
             l_builds = list(set([l_plays[i][1] for i in range(len(l_plays))]))
+            l_moves_done = []
+            l_builds_done = []
 
             # Analyze movements
             for id, (move, build) in enumerate(l_plays):
                 # Copy board and play move
-                dic_param = {}  # Dictionary of moves evaluations
-                dic_param["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
-                dic_param["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
-                dic_param["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
+                if not move in l_moves_done:
+                    dic_param = {}  # Dictionary of moves evaluations
+                    dic_param["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
+                    dic_param["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
+                    dic_param["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
+                    l_moves_done.append(move)
+
                 dic_play_eval[id + start] = dic_param
                 dic_play_ids[id + start] = {"order": pawn.order,
                                     "move": move,

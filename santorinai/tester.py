@@ -5,6 +5,7 @@ from santorinai.board_displayer.board_displayer import (
     update_board,
     close_window,
 )
+from santorinai.utilities import time_it
 from time import sleep
 
 
@@ -27,6 +28,7 @@ class Tester:
         if self.verbose_level >= verbose_level:
             print(message)
 
+    @time_it
     def play_1v1(
         self,
         player1: Player,
