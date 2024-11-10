@@ -76,32 +76,39 @@ class PlayerDPC1(Player):
             l_plays = board.get_possible_movement_and_building_positions(pawn)
 
             # Generate movement sets
-            l_moves_done = []
-            l_builds_done = []
+            dic_moves_done = {}
+            dic_builds_done = {}
 
             # Analyze movements
             for id, (move, build) in enumerate(l_plays):
-                # Move analysis
-                # if not move in l_moves_done:
-                dic_param = {}  # Dictionary of moves evaluations
-                dic_param["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
-                dic_param["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
-                dic_param["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
-                # l_moves_done.append(move)
+                # Move analysis. If already analyzed, extract result
+                if not f"{move}" in dic_moves_done.keys():
+                    dic_param_move = {}  # Dictionary of moves evaluations
+                    dic_param_move["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
+                    dic_param_move["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
+                    dic_param_move["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
+                    dic_param_move["victory_move"] = self.get_victory_move(board, move)
+                    dic_moves_done[f"{move}"] = dic_param_move
+                else:
+                    dic_param_move = dic_moves_done[f"{move}"]
 
                 # Build analysis
-                # if not build in l_builds_done:
-                dic_param["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
-                # l_builds_done.append(build)
+                if not f"{build}" in dic_builds_done.keys():
+                    dic_param_build = {}
+                    dic_param_build["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
+                    dic_builds_done[f"{build}"] = dic_param_build
+                else:
+                    dic_param_build = dic_builds_done[f"{build}"]
 
-                dic_play_eval[id + start] = dic_param
+                dic_param_play = dic_param_move | dic_param_build
+                dic_play_eval[id + start] = dic_param_play
                 dic_play_ids[id + start] = {"order": pawn.order,
                                             "move": move,
                                             "build": build}
             start += id + 1
 
         # Generate plays evaluation matrix
-        a_weights = np.ones(len(dic_param))
+        a_weights = np.ones(len(dic_param_play))
         df_eval = pd.DataFrame(dic_play_eval)
         try:
             ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
@@ -116,7 +123,8 @@ class PlayerDPC1(Player):
 
     def get_pawns_added_heights(self, board: Board, pawn_number, move):
         """
-        Method that returns the sum of the heights of own player pawns
+        Method that returns the sum of the heights squared of own player pawns. Squared
+        so heights (1, 3): (victory) has higher score than (2, 2).
         Args:
             board:
 
@@ -126,9 +134,9 @@ class PlayerDPC1(Player):
         sum_heights = 0
         for pawn_old in board.get_player_pawns(self.player_number):
             if pawn_old.number == pawn_number:
-                sum_heights += board.board[move[0]][move[1]]
+                sum_heights += board.board[move[0]][move[1]]**2
             else:
-                sum_heights += board.board[pawn_old.pos[0]][pawn_old.pos[1]]
+                sum_heights += board.board[pawn_old.pos[0]][pawn_old.pos[1]]**2
         return sum_heights
 
     def get_max_distance_to_rivals(self, board:Board, pawn_number, move):
@@ -222,6 +230,24 @@ class PlayerDPC1(Player):
         # If both building cupule and having a rival at winning position, give high score
         if (height==4 and ((distance_rival_1==1 and height_riv_1==2) or (distance_rival_2==1 and height_riv_2==2))):
             return 100
+        else:
+            return 0
+
+    def get_victory_move(self, board:Board, move):
+        """
+        Gives the most points if it's a victory move.
+        Args:
+            board:
+
+        Returns:
+
+        """
+
+        height = board.board[move[0]][move[1]]
+
+        # If winning move give highest score
+        if height==3:
+            return 1000
         else:
             return 0
 
