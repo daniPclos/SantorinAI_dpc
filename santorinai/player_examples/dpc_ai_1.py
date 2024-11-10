@@ -76,31 +76,38 @@ class PlayerDPC1(Player):
             l_plays = board.get_possible_movement_and_building_positions(pawn)
 
             # Generate movement sets
-            l_moves = list(set([l_plays[i][0] for i in range(len(l_plays))]))
-            l_builds = list(set([l_plays[i][1] for i in range(len(l_plays))]))
             l_moves_done = []
             l_builds_done = []
 
             # Analyze movements
             for id, (move, build) in enumerate(l_plays):
-                # Copy board and play move
-                if not move in l_moves_done:
-                    dic_param = {}  # Dictionary of moves evaluations
-                    dic_param["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
-                    dic_param["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
-                    dic_param["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
-                    l_moves_done.append(move)
+                # Move analysis
+                # if not move in l_moves_done:
+                dic_param = {}  # Dictionary of moves evaluations
+                dic_param["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
+                dic_param["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
+                dic_param["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
+                # l_moves_done.append(move)
+
+                # Build analysis
+                # if not build in l_builds_done:
+                dic_param["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
+                # l_builds_done.append(build)
 
                 dic_play_eval[id + start] = dic_param
                 dic_play_ids[id + start] = {"order": pawn.order,
-                                    "move": move,
-                                    "build": build}
+                                            "move": move,
+                                            "build": build}
             start += id + 1
 
         # Generate plays evaluation matrix
         a_weights = np.ones(len(dic_param))
         df_eval = pd.DataFrame(dic_play_eval)
-        ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
+        try:
+            ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
+        except ValueError:
+            pass
+
         opt_play = np.argsort(ar_eval_comb)[::-1][0]
         dic_opt_play = dic_play_ids[opt_play]
 
@@ -192,7 +199,7 @@ class PlayerDPC1(Player):
         max_dist = 10 - max(rival_pawn_1, rival_pawn_2)
         return int(max_dist)
 
-    def get_avoid_rival_victory_points(self, board:Board):
+    def get_avoid_rival_victory(self, board:Board, build):
         """
         That gives many points if avoiding rival's victory.
         Args:
@@ -201,20 +208,22 @@ class PlayerDPC1(Player):
         Returns:
 
         """
-        a_board = np.array(board.board)
-        a_own_pawns = self.get_own_pawns_array(board)
         a_riv_pawns = self.get_rival_pawns_array(board)
+        height = board.board[build[0]][build[1]] + 1
+        a_build = np.array(build)
 
         # Calculate distances between own pawn and others
-        pawn_1 = max(max(abs(a_riv_pawns[1:3, 0] - a_own_pawns[1:3, 0])),  # x, y distance to rival 1
-                     max(abs(a_riv_pawns[1:3, 1] - a_own_pawns[1:3, 0])))  # x, y distance to rival 2
+        distance_rival_1 = max(abs(a_riv_pawns[1:3, 0] - a_build))  # x, y distance to rival 1
+        height_riv_1 = a_riv_pawns[3,0]
 
-        pawn_2 = max(max(abs(a_riv_pawns[1:3, 0] - a_own_pawns[1:3, 1])),  # x, y distance to rival 1
-                     max(abs(a_riv_pawns[1:3, 1] - a_own_pawns[1:3, 1])))  # x, y distance to rival 2
+        distance_rival_2 = max(abs(a_riv_pawns[1:3, 1] - a_build)) # x, y distance to rival 2
+        height_riv_2 = a_riv_pawns[3, 1]
 
-        # Subtract maximum distance so higher values correspond to lower distances
-        max_dist = 4 - min(pawn_1, pawn_2)
-        return int(max_dist)
+        # If both building cupule and having a rival at winning position, give high score
+        if (height==4 and ((distance_rival_1==1 and height_riv_1==2) or (distance_rival_2==1 and height_riv_2==2))):
+            return 100
+        else:
+            return 0
 
     def get_own_pawns_array(self, board:Board):
         """
