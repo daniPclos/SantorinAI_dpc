@@ -36,15 +36,6 @@ class PlayerDPC1(Player):
                 pawns.append(pawn)
         return pawns
 
-    def get_winning_moves(self, board: Board, pawn):
-        available_positions = board.get_possible_movement_positions(pawn)
-        winning_moves = []
-        for pos in available_positions:
-            if board.board[pos[0]][pos[1]] == 3:
-                winning_moves.append(pos)
-
-        return winning_moves
-
     def place_pawn(self, board: Board, pawn):
         ally_pawn = self.get_ally_pawn(board, pawn)
 
@@ -64,8 +55,33 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board):
-        dic_plays = {}  # Dictionary to store move/build plays
+    def play_move(self, board, n_layers=1, n_branches=2):
+        """
+        Method that plays the best move from analyzing the n_branches
+        best moves for n_layers-deep chain of moves, where each layer
+        corresponds to rival+own move (OBS if n_layers=1 then no
+        additional rival moves investigated)
+        """
+        l_opt_plays = self.play_move_iter(board, n_branches)
+        if n_layers == 1:
+            dic_opt_play = l_opt_plays[0]
+            return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
+        else:
+            for n in range(n_layers - 1):
+                # play opponents round
+                for play in l_opt_plays:
+                    board_i = copy.deepcopy(board)
+                    board_i.play_move(play["order"], play["move"], play["build"])
+
+                # Play own set of rounds
+                pass
+
+
+    def play_move_iter(self, board, n_branches=2):
+        """
+        Method that returns the n_branches best plays. Method that is called
+        iteratively to implement the MinMax search algorithm.
+        """
         dic_play_ids = {}  # Dictionary to map play id's to plays (pawn, move, build)
         dic_play_eval = {}  # Dictionary to store plays evaluation variables
         start = 0
@@ -96,6 +112,63 @@ class PlayerDPC1(Player):
                 if not f"{build}" in dic_builds_done.keys():
                     dic_param_build = {}
                     dic_param_build["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
+                    dic_param_build["avoid_giving_victory"] = self.avoid_giving_victory(board, build)
+                    dic_builds_done[f"{build}"] = dic_param_build
+                else:
+                    dic_param_build = dic_builds_done[f"{build}"]
+
+                dic_param_play = dic_param_move | dic_param_build
+                dic_play_eval[id + start] = dic_param_play
+                dic_play_ids[id + start] = {"order": pawn.order,
+                                            "move": move,
+                                            "build": build}
+            start += id + 1
+
+        # Generate plays evaluation matrix
+        a_weights = np.ones(len(dic_param_play))
+        df_eval = pd.DataFrame(dic_play_eval)
+        try:
+            ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
+        except ValueError:
+            pass
+
+        l_opt_plays = np.argsort(ar_eval_comb)[::-1][:n_branches].tolist()
+        l_opt_plays = [dic_play_ids[play] for play in l_opt_plays]
+
+        return l_opt_plays
+
+    def play_move_2(self, board):
+        dic_play_ids = {}  # Dictionary to map play id's to plays (pawn, move, build)
+        dic_play_eval = {}  # Dictionary to store plays evaluation variables
+        start = 0
+        id = -1  # -1 for edge case where first pawn has no plays id=-1 sets start=0 for second pawn, avoiding key error
+
+        # Select available moves and builds
+        for pawn in board.get_player_pawns(self.player_number):
+            l_plays = board.get_possible_movement_and_building_positions(pawn)
+
+            # Generate movement sets
+            dic_moves_done = {}
+            dic_builds_done = {}
+
+            # Analyze movements
+            for id, (move, build) in enumerate(l_plays):
+                # Move analysis. If already analyzed, extract result
+                if not f"{move}" in dic_moves_done.keys():
+                    dic_param_move = {}  # Dictionary of moves evaluations
+                    dic_param_move["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
+                    dic_param_move["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
+                    dic_param_move["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
+                    dic_param_move["victory_move"] = self.get_victory_move(board, move)
+                    dic_moves_done[f"{move}"] = dic_param_move
+                else:
+                    dic_param_move = dic_moves_done[f"{move}"]
+
+                # Build analysis
+                if not f"{build}" in dic_builds_done.keys():
+                    dic_param_build = {}
+                    dic_param_build["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
+                    dic_param_build["avoid_giving_victory"] = self.avoid_giving_victory(board, build)
                     dic_builds_done[f"{build}"] = dic_param_build
                 else:
                     dic_param_build = dic_builds_done[f"{build}"]
@@ -124,7 +197,7 @@ class PlayerDPC1(Player):
     def get_pawns_added_heights(self, board: Board, pawn_number, move):
         """
         Method that returns the sum of the heights squared of own player pawns. Squared
-        so heights (1, 3): (victory) has higher score than (2, 2).
+        so higher heights score better e.g. 0,2 vs 1,1.
         Args:
             board:
 
@@ -233,6 +306,31 @@ class PlayerDPC1(Player):
         else:
             return 0
 
+    def avoid_giving_victory(self, board:Board, build):
+        """
+        Avoid building on a rival's victory position.
+        Args:
+            board:
+
+        Returns:
+
+        """
+        a_riv_pawns = self.get_rival_pawns_array(board)
+        height = board.board[build[0]][build[1]] + 1
+        a_build = np.array(build)
+
+        # Calculate distances between own pawn and others
+        distance_rival_1 = max(abs(a_riv_pawns[1:3, 0] - a_build))  # x, y distance to rival 1
+        height_riv_1 = a_riv_pawns[3,0]
+
+        distance_rival_2 = max(abs(a_riv_pawns[1:3, 1] - a_build)) # x, y distance to rival 2
+        height_riv_2 = a_riv_pawns[3, 1]
+
+        # If both building cupule and having a rival at winning position, give high score
+        if (height==3 and ((distance_rival_1==1 and height_riv_1==2) or (distance_rival_2==1 and height_riv_2==2))):
+            return -100
+        else:
+            return 0
     def get_victory_move(self, board:Board, move):
         """
         Gives the most points if it's a victory move.

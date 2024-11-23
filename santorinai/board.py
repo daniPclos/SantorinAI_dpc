@@ -623,3 +623,6 @@ class Board:
             output += "\n"
 
         return output
+
+    def get_board_array(self):
+        pass

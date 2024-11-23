@@ -10,7 +10,7 @@ from santorinai.player_examples.dpc_ai_1 import PlayerDPC1
 
 players_classes = [
     BasicPlayer,
-    RandomPlayer,
+    # RandomPlayer,
     FirstChoicePlayer,
     PlayerDPC1
 ]
