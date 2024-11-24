@@ -62,20 +62,29 @@ class PlayerDPC1(Player):
         corresponds to rival+own move (OBS if n_layers=1 then no
         additional rival moves investigated)
         """
-        l_opt_plays = self.play_move_iter(board, n_branches)
-        if n_layers == 1:
-            dic_opt_play = l_opt_plays[0]
-            return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
-        else:
-            for n in range(n_layers - 1):
-                # play opponents round
-                for play in l_opt_plays:
-                    board_i = copy.deepcopy(board)
-                    board_i.play_move(play["order"], play["move"], play["build"])
+        # Initialize plays analysis placeholders
+        l_l_opt_plays = []
+        l_ar_eval = []
+        # Evaluate potential moves and select the n_branches most promising candidates
+        l_opt_plays, ar_eval = self.play_move_iter(board, n_branches)
 
-                # Play own set of rounds
-                pass
+        # Evaluate branches for
+        for n in range(n_layers - 1):
+            # Get opponents play for each own play from the previous turn
+            for play in l_opt_plays:
+                board_2 = copy.deepcopy(board)
+                board_2.play_move(play["order"], play["move"], play["build"])
+                l_opt_plays_2, ar_eval_2 = self.play_move_iter(board_2, n_branches)
 
+                # Get own plays for each oppoenent play
+                for play_2 in l_opt_plays_2:
+                    board_3 = copy.deepcopy(board_2)
+                    board_3.play_move(play["order"], play_2["move"], play_2["build"])
+                    l_opt_plays_3, ar_eval_3 = self.play_move_iter(board_3, n_branches)
+
+
+        dic_opt_play = l_opt_plays[0]
+        return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
 
     def play_move_iter(self, board, n_branches=2):
         """
@@ -132,67 +141,11 @@ class PlayerDPC1(Player):
         except ValueError:
             pass
 
+        ar_eval_comb_opt = np.sort(ar_eval_comb)[::-1][:n_branches]
         l_opt_plays = np.argsort(ar_eval_comb)[::-1][:n_branches].tolist()
         l_opt_plays = [dic_play_ids[play] for play in l_opt_plays]
 
-        return l_opt_plays
-
-    def play_move_2(self, board):
-        dic_play_ids = {}  # Dictionary to map play id's to plays (pawn, move, build)
-        dic_play_eval = {}  # Dictionary to store plays evaluation variables
-        start = 0
-        id = -1  # -1 for edge case where first pawn has no plays id=-1 sets start=0 for second pawn, avoiding key error
-
-        # Select available moves and builds
-        for pawn in board.get_player_pawns(self.player_number):
-            l_plays = board.get_possible_movement_and_building_positions(pawn)
-
-            # Generate movement sets
-            dic_moves_done = {}
-            dic_builds_done = {}
-
-            # Analyze movements
-            for id, (move, build) in enumerate(l_plays):
-                # Move analysis. If already analyzed, extract result
-                if not f"{move}" in dic_moves_done.keys():
-                    dic_param_move = {}  # Dictionary of moves evaluations
-                    dic_param_move["sum_height"] = self.get_pawns_added_heights(board, pawn.number, move)
-                    dic_param_move["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
-                    dic_param_move["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
-                    dic_param_move["victory_move"] = self.get_victory_move(board, move)
-                    dic_moves_done[f"{move}"] = dic_param_move
-                else:
-                    dic_param_move = dic_moves_done[f"{move}"]
-
-                # Build analysis
-                if not f"{build}" in dic_builds_done.keys():
-                    dic_param_build = {}
-                    dic_param_build["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
-                    dic_param_build["avoid_giving_victory"] = self.avoid_giving_victory(board, build)
-                    dic_builds_done[f"{build}"] = dic_param_build
-                else:
-                    dic_param_build = dic_builds_done[f"{build}"]
-
-                dic_param_play = dic_param_move | dic_param_build
-                dic_play_eval[id + start] = dic_param_play
-                dic_play_ids[id + start] = {"order": pawn.order,
-                                            "move": move,
-                                            "build": build}
-            start += id + 1
-
-        # Generate plays evaluation matrix
-        a_weights = np.ones(len(dic_param_play))
-        df_eval = pd.DataFrame(dic_play_eval)
-        try:
-            ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
-        except ValueError:
-            pass
-
-        opt_play = np.argsort(ar_eval_comb)[::-1][0]
-        dic_opt_play = dic_play_ids[opt_play]
-
-        return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
-
+        return l_opt_plays, ar_eval_comb_opt
 
     def get_pawns_added_heights(self, board: Board, pawn_number, move):
         """
