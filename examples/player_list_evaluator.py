@@ -26,7 +26,7 @@ tester.verbose_level = 0
 # tester.delay_between_moves = 0.5  # Delay between each move in seconds
 # tester.display_board = True  # Display a graphical view of the board in a window
 
-nb_games = 1000
+nb_games = 100
 results = {}  # We will count the number of victories for each player
 
 # Initialize global victory type evaluator

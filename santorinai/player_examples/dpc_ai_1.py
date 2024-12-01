@@ -55,7 +55,7 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=2, n_branches=2):
+    def play_move(self, board, n_layers=3, n_branches=3):
         """
         Method that plays the best move from analyzing the n_branches
         best moves for n_layers-deep chain of moves, where each layer
@@ -63,37 +63,59 @@ class PlayerDPC1(Player):
         additional rival moves investigated)
         """
         # Initialize plays analysis placeholders
-        l_ar_eval = [0. for _ in range(n_branches**(2 * n_layers - 1))]
+        l_ar_eval = [0. for _ in range(n_branches**n_layers)]
         n_eval = len(l_ar_eval)
-        ar_eval_tot = np.tile(l_ar_eval, (2 * n_layers - 1, 1))
+        ar_eval_tot = np.tile(l_ar_eval, (n_layers, 1))
 
         # Evaluate potential moves and select the n_branches most promising candidates
         l_opt_plays, ar_eval = self.play_move_iter(board, n_branches)
 
-        # Integrate evaluation of outer plays
-        ar_eval_exp = np.repeat(ar_eval, n_branches**2)
+        # Integrate evaluation of outer plays by expanding the plays array to fit the final cases at layer n_layer
+        ar_eval_exp = np.repeat(ar_eval, n_branches**(n_layers - 1))
+        ar_eval_tot[0] = ar_eval_exp
 
         # Generate initial plays evaluation dictionary that needs to be updated at the end of each turn n
         l_l_plays = [l_opt_plays]
+        l_boards = [board]
 
-        # Evaluate branches for
+        # Evaluate branches for next turn
         for n in range(n_layers - 1):
+            l_boards_i = []
+            l_l_plays_i = []
+
             # Iterate through branches from previous turn
-            for idx1, branch in enumerate(l_l_plays):
+            for idx1, (branch, board) in enumerate(zip(l_l_plays, l_boards)):
+                l_branch_eval = []
+                l_own_branch_eval = []
+
                 # Get opponents play for each own play from the previous turn
                 for play in branch:
                     board_2 = copy.deepcopy(board)
                     board_2.play_move(play["order"], play["move"], play["build"])
                     l_opt_plays_2, ar_eval_2 = self.play_move_iter(board_2, n_branches)
+                    ar_eval_2 *= (-1)**(n+1)  #  Add own play points and subtract rival's
 
-                    # Get own plays for each oppoenent play
-                    for play_2 in l_opt_plays_2:
-                        board_3 = copy.deepcopy(board_2)
-                        board_3.play_move(play["order"], play_2["move"], play_2["build"])
-                        l_opt_plays_3, ar_eval_3 = self.play_move_iter(board_3, n_branches)
+                    # Expand and integrate current plays evaluation
+                    ar_eval_exp_2 = np.repeat(ar_eval_2, n_branches ** (n_layers - 2))
+                    l_branch_eval.append(ar_eval_exp_2)
 
+                    # Append the plays and boards for next turn evaluation
+                    l_l_plays_i.append(l_opt_plays_2)
+                    l_boards_i.append(board_2)
 
-        dic_opt_play = l_opt_plays[0]
+            # Collect all turns plays in global evaluation matrix
+            ar_eval_turn_i = np.concat(l_branch_eval)
+            ar_eval_tot[n + 1] = ar_eval_turn_i
+
+            # Set list of plays and boards to be evaluated in the next turn
+            l_l_plays = l_l_plays_i
+            l_boards = l_boards_i
+
+        # Select play with the highest score
+        col_sums = ar_eval_tot.sum(axis=0)
+        max_col_idx = np.argmax(col_sums)
+        idx_opt = int(np.ceil(n_branches * (max_col_idx + 1) / n_branches**(n_layers)) - 1)  # -1 for 0 idx notaion
+        dic_opt_play = l_opt_plays[idx_opt]
         return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
 
     def play_move_iter(self, board, n_branches=2):
