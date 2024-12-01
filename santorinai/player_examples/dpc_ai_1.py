@@ -55,7 +55,7 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=1, n_branches=2):
+    def play_move(self, board, n_layers=2, n_branches=2):
         """
         Method that plays the best move from analyzing the n_branches
         best moves for n_layers-deep chain of moves, where each layer
@@ -63,24 +63,34 @@ class PlayerDPC1(Player):
         additional rival moves investigated)
         """
         # Initialize plays analysis placeholders
-        l_l_opt_plays = []
-        l_ar_eval = []
+        l_ar_eval = [0. for _ in range(n_branches**(2 * n_layers - 1))]
+        n_eval = len(l_ar_eval)
+        ar_eval_tot = np.tile(l_ar_eval, (2 * n_layers - 1, 1))
+
         # Evaluate potential moves and select the n_branches most promising candidates
         l_opt_plays, ar_eval = self.play_move_iter(board, n_branches)
 
+        # Integrate evaluation of outer plays
+        ar_eval_exp = np.repeat(ar_eval, n_branches**2)
+
+        # Generate initial plays evaluation dictionary that needs to be updated at the end of each turn n
+        l_l_plays = [l_opt_plays]
+
         # Evaluate branches for
         for n in range(n_layers - 1):
-            # Get opponents play for each own play from the previous turn
-            for play in l_opt_plays:
-                board_2 = copy.deepcopy(board)
-                board_2.play_move(play["order"], play["move"], play["build"])
-                l_opt_plays_2, ar_eval_2 = self.play_move_iter(board_2, n_branches)
+            # Iterate through branches from previous turn
+            for idx1, branch in enumerate(l_l_plays):
+                # Get opponents play for each own play from the previous turn
+                for play in branch:
+                    board_2 = copy.deepcopy(board)
+                    board_2.play_move(play["order"], play["move"], play["build"])
+                    l_opt_plays_2, ar_eval_2 = self.play_move_iter(board_2, n_branches)
 
-                # Get own plays for each oppoenent play
-                for play_2 in l_opt_plays_2:
-                    board_3 = copy.deepcopy(board_2)
-                    board_3.play_move(play["order"], play_2["move"], play_2["build"])
-                    l_opt_plays_3, ar_eval_3 = self.play_move_iter(board_3, n_branches)
+                    # Get own plays for each oppoenent play
+                    for play_2 in l_opt_plays_2:
+                        board_3 = copy.deepcopy(board_2)
+                        board_3.play_move(play["order"], play_2["move"], play_2["build"])
+                        l_opt_plays_3, ar_eval_3 = self.play_move_iter(board_3, n_branches)
 
 
         dic_opt_play = l_opt_plays[0]
@@ -345,4 +355,3 @@ class PlayerDPC1(Player):
             l_heights.append(board.board[pawn.pos[0]][pawn.pos[1]])
         a_rival_pawns = np.array([l_pawn_nb, l_pos_x, l_pos_y, l_heights])
         return a_rival_pawns
-
