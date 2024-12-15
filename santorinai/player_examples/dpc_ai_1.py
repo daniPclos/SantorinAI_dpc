@@ -55,7 +55,7 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=3, n_branches=3):
+    def play_move(self, board, n_layers=1, n_branches=3):
         """
         Method that plays the best move from analyzing the n_branches
         best moves for n_layers-deep chain of moves, where each layer
@@ -86,7 +86,6 @@ class PlayerDPC1(Player):
             # Iterate through branches from previous turn
             for idx1, (branch, board) in enumerate(zip(l_l_plays, l_boards)):
                 l_branch_eval = []
-                l_own_branch_eval = []
 
                 # Get opponents play for each own play from the previous turn
                 for play in branch:
@@ -114,8 +113,9 @@ class PlayerDPC1(Player):
         # Select play with the highest score
         col_sums = ar_eval_tot.sum(axis=0)
         max_col_idx = np.argmax(col_sums)
-        idx_opt = int(np.ceil(n_branches * (max_col_idx + 1) / n_branches**(n_layers)) - 1)  # -1 for 0 idx notaion
+        idx_opt = int(np.ceil(n_branches * (max_col_idx + 1) / n_branches**(n_layers)) - 1)  # -1 for 0 idx notation
         dic_opt_play = l_opt_plays[idx_opt]
+
         return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
 
     def play_move_iter(self, board, n_branches=2):
@@ -145,6 +145,8 @@ class PlayerDPC1(Player):
                     dic_param_move["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
                     dic_param_move["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
                     dic_param_move["victory_move"] = self.get_victory_move(board, move)
+                    dic_param_move["move_to_blocking_position"] = self.move_to_blocking_position(board, pawn.number,
+                                                                                                 move)
                     dic_moves_done[f"{move}"] = dic_param_move
                 else:
                     dic_param_move = dic_moves_done[f"{move}"]
@@ -264,6 +266,52 @@ class PlayerDPC1(Player):
         # Subtract maximum distance so higher values correspond to lower distances
         max_dist = 10 - max(rival_pawn_1, rival_pawn_2)
         return int(max_dist)
+
+    def move_to_blocking_position(self, board:Board, pawn_number, move):
+        """
+        Method that computes the maximum, minimum distance to adjacent enemy pawns.
+        Args:
+            board:
+
+        Returns:
+
+        """
+        a_own_pawns = self.get_own_pawns_array(board)
+        a_riv_pawns = self.get_rival_pawns_array(board)
+
+        # Update position of own moving pawn
+        if a_own_pawns[0,0] == pawn_number:
+            a_own_pawns[1,0] = move[0]
+            a_own_pawns[2,0] = move[1]
+        elif a_own_pawns[0,1] == pawn_number:
+            a_own_pawns[1,1] = move[0]
+            a_own_pawns[2,1] = move[1]
+
+        b_rival_win_in_two_moves = False
+        # Identify rivals potential winning in two turns position and potential blocking positions
+        for idx in range(2):
+            n_available_block_pos = 0
+            if a_riv_pawns[3,idx] == 2:
+                # Check wether heights of neighbour buildings have also height 2
+                for x in range (a_riv_pawns[1,0]-1, a_riv_pawns[1,0]+1):
+                    if (x < 0 or x > 4):  # Filter coordinates outside the board
+                        continue
+                    for y in range (a_riv_pawns[2,0]-1, a_riv_pawns[2,0]+1):
+                        if (y < 0 or y > 4):
+                            continue
+                        if board.board[x][y] == 2:
+                            b_rival_win_in_two_moves = True
+                        # Check whether blocking position is available
+                        else:
+                            if not board.is_pawn_on_position((x,y)):
+                                n_available_block_pos += 1
+
+                # If rival victory in 2 turns can't be avoided due to lack of positions to block, give negative score
+                # OBS This simplified analysis does not ensure that rival victory can be avoided, just some cases were it can't
+                if b_rival_win_in_two_moves and n_available_block_pos < 1:
+                    return -50
+        # If no blocking issues return no points
+        return 0
 
     def get_avoid_rival_victory(self, board:Board, build):
         """
