@@ -526,7 +526,7 @@ class Board:
             build_position (tuple): The position (x, y) to build a tower on.
         """
         # Apply the move
-        self.pawns[pawn_number].move(move_position)
+        self.pawns[pawn_number-1].move(move_position)
 
         # Build the tower
         self.board[build_position[0]][build_position[1]] += 1

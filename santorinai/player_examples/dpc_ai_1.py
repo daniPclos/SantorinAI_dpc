@@ -145,8 +145,6 @@ class PlayerDPC1(Player):
                     dic_param_move["max_dist_rivals"] = self.get_max_distance_to_rivals(board, pawn.number, move)
                     dic_param_move["max_dist_height_rivals"] = self.get_rivals_distance_height(board, pawn.number, move)
                     dic_param_move["victory_move"] = self.get_victory_move(board, move)
-                    dic_param_move["move_to_blocking_position"] = self.move_to_blocking_position(board, pawn.number,
-                                                                                                 move)
                     dic_moves_done[f"{move}"] = dic_param_move
                 else:
                     dic_param_move = dic_moves_done[f"{move}"]
@@ -156,11 +154,17 @@ class PlayerDPC1(Player):
                     dic_param_build = {}
                     dic_param_build["avoid_rival_victory"] = self.get_avoid_rival_victory(board, build)
                     dic_param_build["avoid_giving_victory"] = self.avoid_giving_victory(board, build)
+
                     dic_builds_done[f"{build}"] = dic_param_build
                 else:
                     dic_param_build = dic_builds_done[f"{build}"]
 
-                dic_param_play = dic_param_move | dic_param_build
+                # Move and build analysis
+                dic_param_build_move = {}
+                dic_param_build_move["move_to_blocking_position"] = self.move_to_blocking_position(board, pawn.number,
+                                                                                             move, build)
+
+                dic_param_play = dic_param_move | dic_param_build | dic_param_build_move
                 dic_play_eval[id + start] = dic_param_play
                 dic_play_ids[id + start] = {"order": pawn.order,
                                             "move": move,
@@ -267,7 +271,7 @@ class PlayerDPC1(Player):
         max_dist = 10 - max(rival_pawn_1, rival_pawn_2)
         return int(max_dist)
 
-    def move_to_blocking_position(self, board:Board, pawn_number, move):
+    def move_to_blocking_position(self, board:Board, pawn_number, move, build):
         """
         Method that computes the maximum, minimum distance to adjacent enemy pawns.
         Args:
@@ -279,24 +283,25 @@ class PlayerDPC1(Player):
         a_own_pawns = self.get_own_pawns_array(board)
         a_riv_pawns = self.get_rival_pawns_array(board)
 
-        # Update position of own moving pawn
-        if a_own_pawns[0,0] == pawn_number:
-            a_own_pawns[1,0] = move[0]
-            a_own_pawns[2,0] = move[1]
-        elif a_own_pawns[0,1] == pawn_number:
-            a_own_pawns[1,1] = move[0]
-            a_own_pawns[2,1] = move[1]
-
+        # # Update position of own moving pawn
+        # if a_own_pawns[0,0] == pawn_number:
+        #     a_own_pawns[1,0] = move[0]
+        #     a_own_pawns[2,0] = move[1]
+        # elif a_own_pawns[0,1] == pawn_number:
+        #     a_own_pawns[1,1] = move[0]
+        #     a_own_pawns[2,1] = move[1]
+        board_2 = board.copy()
+        board_2.play_move_simple(pawn_number, move, build)
         b_rival_win_in_two_moves = False
         # Identify rivals potential winning in two turns position and potential blocking positions
         for idx in range(2):
             n_available_block_pos = 0
             if a_riv_pawns[3,idx] == 2:
                 # Check wether heights of neighbour buildings have also height 2
-                for x in range (a_riv_pawns[1,0]-1, a_riv_pawns[1,0]+1):
+                for x in range (a_riv_pawns[1, idx] - 1, a_riv_pawns[1, idx] + 1):
                     if (x < 0 or x > 4):  # Filter coordinates outside the board
                         continue
-                    for y in range (a_riv_pawns[2,0]-1, a_riv_pawns[2,0]+1):
+                    for y in range (a_riv_pawns[2, idx] - 1, a_riv_pawns[2, idx] + 1):
                         if (y < 0 or y > 4):
                             continue
                         if board.board[x][y] == 2:
