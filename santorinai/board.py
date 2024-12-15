@@ -509,6 +509,29 @@ class Board:
 
         return True, "The move was played."
 
+    def play_move_simple(
+        self,
+        pawn_number: int,
+        move_position: Tuple[int, int],
+        build_position: Tuple[int, int],
+    ):
+        """
+        Simplified update of the board with a given pawn move and build.
+        No validity checks performed as it is intended as a tool for players
+        to evaluate chains of plays efficiently. The board will ultimately
+        check the validity of the chosen play.
+        Args:
+            pawn_number (int): Pawn unique identifier (not order).
+            move_position (tuple): The position (x, y) to move the pawn to.
+            build_position (tuple): The position (x, y) to build a tower on.
+        """
+        # Apply the move
+        self.pawns[pawn_number].move(move_position)
+
+        # Build the tower
+        self.board[build_position[0]][build_position[1]] += 1
+
+
     def is_position_valid(self, pos: Tuple[int, int]):
         """
         Checks if a pos is valid.

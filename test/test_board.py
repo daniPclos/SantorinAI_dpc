@@ -132,7 +132,14 @@ class TestBoardTwoPlayers(unittest.TestCase):
         board_copy.pawns[0].pos = (1, 1)
         self.assertNotEqual(board_copy.pawns[0].pos, board.pawns[0].pos)
 
-
+    def test_play_move_simple(self):
+        board = Board(self.NB_PLAYERS)
+        pawn_move_number = 1
+        move = (2,2)
+        build = (3,3)
+        board.play_move_simple(pawn_move_number, move, build)
+        self.assertEqual(board.pawns[pawn_move_number].pos, move)
+        self.assertEqual(board.board[build[0]][build[1]], 1)
 class TestBoardThreePlayers(unittest.TestCase):
     NB_PLAYERS = 3
 
