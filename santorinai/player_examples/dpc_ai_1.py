@@ -55,7 +55,7 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=1, n_branches=3):
+    def play_move(self, board, n_layers=1, n_branches=1):
         """
         Method that plays the best move from analyzing the n_branches
         best moves for n_layers-deep chain of moves, where each layer
@@ -298,17 +298,19 @@ class PlayerDPC1(Player):
             n_available_block_pos = 0
             if a_riv_pawns[3,idx] == 2:
                 # Check wether heights of neighbour buildings have also height 2
-                for x in range (a_riv_pawns[1, idx] - 1, a_riv_pawns[1, idx] + 1):
+                for x in range (a_riv_pawns[1, idx] - 1, a_riv_pawns[1, idx] + 2):
                     if (x < 0 or x > 4):  # Filter coordinates outside the board
                         continue
-                    for y in range (a_riv_pawns[2, idx] - 1, a_riv_pawns[2, idx] + 1):
+                    for y in range (a_riv_pawns[2, idx] - 1, a_riv_pawns[2, idx] + 2):
                         if (y < 0 or y > 4):
                             continue
-                        if board.board[x][y] == 2:
+                        if (board_2.board[x][y] == 2 and not
+                            board_2.is_pawn_on_position((x,y))):
                             b_rival_win_in_two_moves = True
                         # Check whether blocking position is available
                         else:
-                            if not board.is_pawn_on_position((x,y)):
+                            if not (board_2.is_pawn_on_position((x,y)) or
+                                    board_2.board[x][y] == 4):
                                 n_available_block_pos += 1
 
                 # If rival victory in 2 turns can't be avoided due to lack of positions to block, give negative score
