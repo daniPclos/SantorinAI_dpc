@@ -55,7 +55,7 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=1, n_branches=1):
+    def play_move(self, board, n_layers=2, n_branches=10):
         """
         Method that plays the best move from analyzing the n_branches
         best moves for n_layers-deep chain of moves, where each layer
@@ -64,14 +64,21 @@ class PlayerDPC1(Player):
         """
         # Initialize plays analysis placeholders
         l_ar_eval = [0. for _ in range(n_branches**n_layers)]
-        n_eval = len(l_ar_eval)
         ar_eval_tot = np.tile(l_ar_eval, (n_layers, 1))
 
         # Evaluate potential moves and select the n_branches most promising candidates
         l_opt_plays, ar_eval = self.play_move_iter(board, n_branches)
 
+        # if number of available plays is lower than the number of branches, add dummy plays to avoid errors
+        # due to different array shapes
+        n_diff = n_branches - ar_eval.shape[0]
+        if n_diff > 0:
+            ar_eval = np.append(ar_eval, [np.nan] * n_diff)
+            l_opt_plays.extend([None] * n_diff)
+
         # Integrate evaluation of outer plays by expanding the plays array to fit the final cases at layer n_layer
         ar_eval_exp = np.repeat(ar_eval, n_branches**(n_layers - 1))
+
         ar_eval_tot[0] = ar_eval_exp
 
         # Generate initial plays evaluation dictionary that needs to be updated at the end of each turn n
@@ -87,12 +94,36 @@ class PlayerDPC1(Player):
             for idx1, (branch, board) in enumerate(zip(l_l_plays, l_boards)):
                 l_branch_eval = []
 
-                # Get opponents play for each own play from the previous turn
+                # Get play for each play from the previous turn
                 for play in branch:
-                    board_2 = copy.deepcopy(board)
+                    if play is None:
+                        # If branch with no plays, fill child results array with NaNs
+                        ar_dummy = np.empty(n_branches)
+                        ar_dummy.fill(np.nan)
+                        l_opt_plays_2_dummy = list([None] * n_branches)
+
+                        # Expand and integrate current plays evaluation
+                        ar_eval_exp_2 = np.repeat(ar_dummy, n_branches ** (n_layers - 2))
+                        l_branch_eval.append(ar_eval_exp_2)
+
+                        # Append the plays and boards for next turn evaluation
+                        l_l_plays_i.append(l_opt_plays_2_dummy)
+                        l_boards_i.append(board_2)
+                        continue
+
+                    board_2 = board.copy()
                     board_2.play_move(play["order"], play["move"], play["build"])
                     l_opt_plays_2, ar_eval_2 = self.play_move_iter(board_2, n_branches)
-                    ar_eval_2 *= (-1)**(n+1)  #  Add own play points and subtract rival's
+
+                    # if number of available plays is lower than the number of branches, add dummy plays to avoid errors
+                    # due to different array shapes
+                    n_diff = n_branches - ar_eval_2.shape[0]
+                    if n_diff > 0:
+                        ar_eval_2 = np.append(ar_eval_2, [np.nan] * n_diff)
+                        l_opt_plays_2.extend([None] * n_diff)
+
+                    #  Add own play points and subtract rival's
+                    ar_eval_2 *= (-1)**(n+1)
 
                     # Expand and integrate current plays evaluation
                     ar_eval_exp_2 = np.repeat(ar_eval_2, n_branches ** (n_layers - 2))
@@ -102,8 +133,17 @@ class PlayerDPC1(Player):
                     l_l_plays_i.append(l_opt_plays_2)
                     l_boards_i.append(board_2)
 
+
             # Collect all turns plays in global evaluation matrix
             ar_eval_turn_i = np.concat(l_branch_eval)
+
+            # # if number of available plays is lower than the number of branches, add dummy plays to avoid errors
+            # # due to different array shapes
+            # n_diff = n_branches**n_layers - ar_eval_turn_i.shape[0]
+            # if n_diff > 0:
+            #     ar_eval_turn_i = np.append(ar_eval_turn_i, [np.nan] * n_diff)
+            #     l_opt_plays_2.extend([None] * n_diff)
+
             ar_eval_tot[n + 1] = ar_eval_turn_i
 
             # Set list of plays and boards to be evaluated in the next turn
@@ -113,12 +153,15 @@ class PlayerDPC1(Player):
         # Select play with the highest score
         col_sums = ar_eval_tot.sum(axis=0)
         max_col_idx = np.argmax(col_sums)
+
+        # Get play from the optimal play index, using the final index position
+        # to map to the optimal play in the root branch
         idx_opt = int(np.ceil(n_branches * (max_col_idx + 1) / n_branches**(n_layers)) - 1)  # -1 for 0 idx notation
         dic_opt_play = l_opt_plays[idx_opt]
 
         return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
 
-    def play_move_iter(self, board, n_branches=2):
+    def play_move_iter(self, board, n_branches):
         """
         Method that returns the n_branches best plays. Method that is called
         iteratively to implement the MinMax search algorithm.
@@ -273,27 +316,22 @@ class PlayerDPC1(Player):
 
     def move_to_blocking_position(self, board:Board, pawn_number, move, build):
         """
-        Method that computes the maximum, minimum distance to adjacent enemy pawns.
+        Method that identifies rivals potential winning in two turns position and potential blocking positions
+        and gives negative points if no blocking positions are available.
+        Intended to avoid own pawns sitting on a potential blocking position.
         Args:
             board:
 
         Returns:
 
         """
-        a_own_pawns = self.get_own_pawns_array(board)
-        a_riv_pawns = self.get_rival_pawns_array(board)
-
-        # # Update position of own moving pawn
-        # if a_own_pawns[0,0] == pawn_number:
-        #     a_own_pawns[1,0] = move[0]
-        #     a_own_pawns[2,0] = move[1]
-        # elif a_own_pawns[0,1] == pawn_number:
-        #     a_own_pawns[1,1] = move[0]
-        #     a_own_pawns[2,1] = move[1]
         board_2 = board.copy()
         board_2.play_move_simple(pawn_number, move, build)
+
+        a_riv_pawns = self.get_rival_pawns_array(board_2)
+
         b_rival_win_in_two_moves = False
-        # Identify rivals potential winning in two turns position and potential blocking positions
+
         for idx in range(2):
             n_available_block_pos = 0
             if a_riv_pawns[3,idx] == 2:
@@ -371,6 +409,7 @@ class PlayerDPC1(Player):
             return -100
         else:
             return 0
+
     def get_victory_move(self, board:Board, move):
         """
         Gives the most points if it's a victory move.
