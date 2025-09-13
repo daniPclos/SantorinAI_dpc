@@ -55,12 +55,11 @@ class PlayerDPC1(Player):
 
         return choice(available_positions)
 
-    def play_move(self, board, n_layers=2, n_branches=10):
+    def play_move(self, board, n_layers=2, n_branches=200):
         """
         Method that plays the best move from analyzing the n_branches
-        best moves for n_layers-deep chain of moves, where each layer
-        corresponds to rival+own move (OBS if n_layers=1 then no
-        additional rival moves investigated)
+        best moves for n_layers-deep chain of moves, where each new layer
+        alternates between own and rival moves
         """
         # Initialize plays analysis placeholders
         l_ar_eval = [0. for _ in range(n_branches**n_layers)]
@@ -159,6 +158,10 @@ class PlayerDPC1(Player):
         idx_opt = int(np.ceil(n_branches * (max_col_idx + 1) / n_branches**(n_layers)) - 1)  # -1 for 0 idx notation
         dic_opt_play = l_opt_plays[idx_opt]
 
+        # Avoid error if pawns are stuck and dic_opt_play in None
+        if not dic_opt_play:
+            dic_opt_play = {"order": 1, "move": (0,0), "build": (0,0)}
+
         return dic_opt_play["order"], dic_opt_play["move"], dic_opt_play["build"]
 
     def play_move_iter(self, board, n_branches):
@@ -168,6 +171,7 @@ class PlayerDPC1(Player):
         """
         dic_play_ids = {}  # Dictionary to map play id's to plays (pawn, move, build)
         dic_play_eval = {}  # Dictionary to store plays evaluation variables
+        dic_param_play = {}  # Initialize inner plays dic to evaluate case where both pawns are stuck
         start = 0
         id = -1  # -1 for edge case where first pawn has no plays id=-1 sets start=0 for second pawn, avoiding key error
 
@@ -214,17 +218,22 @@ class PlayerDPC1(Player):
                                             "build": build}
             start += id + 1
 
-        # Generate plays evaluation matrix
-        a_weights = np.ones(len(dic_param_play))
-        df_eval = pd.DataFrame(dic_play_eval)
-        try:
-            ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
-        except ValueError:
-            pass
+        # Generate dummy data if both pawns are stuck and there are no plays to evaluate
+        if not dic_param_play:
+            l_opt_plays = []
+            ar_eval_comb_opt = np.empty((0,))
+        else:
+            # Generate plays evaluation matrix
+            a_weights = np.ones(len(dic_param_play))
+            df_eval = pd.DataFrame(dic_play_eval)
+            try:
+                ar_eval_comb = df_eval.mul(a_weights, axis=0).sum(axis=0).values
+            except ValueError:
+                pass
 
-        ar_eval_comb_opt = np.sort(ar_eval_comb)[::-1][:n_branches]
-        l_opt_plays = np.argsort(ar_eval_comb)[::-1][:n_branches].tolist()
-        l_opt_plays = [dic_play_ids[play] for play in l_opt_plays]
+            ar_eval_comb_opt = np.sort(ar_eval_comb)[::-1][:n_branches]
+            l_opt_plays = np.argsort(ar_eval_comb)[::-1][:n_branches].tolist()
+            l_opt_plays = [dic_play_ids[play] for play in l_opt_plays]
 
         return l_opt_plays, ar_eval_comb_opt
 
@@ -335,7 +344,7 @@ class PlayerDPC1(Player):
         for idx in range(2):
             n_available_block_pos = 0
             if a_riv_pawns[3,idx] == 2:
-                # Check wether heights of neighbour buildings have also height 2
+                # Check whether heights of neighbour buildings have also height 2
                 for x in range (a_riv_pawns[1, idx] - 1, a_riv_pawns[1, idx] + 2):
                     if (x < 0 or x > 4):  # Filter coordinates outside the board
                         continue
